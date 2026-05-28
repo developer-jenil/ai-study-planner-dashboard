@@ -170,7 +170,7 @@ export default function App() {
     localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")) : null
   );
   const [authView, setAuthView] = useState("login");
-  const API_URL = "http://localhost:5000/api";
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
   useEffect(() => {
     if (!token) return;
