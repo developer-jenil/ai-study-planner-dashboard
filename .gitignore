@@ -1,0 +1,15 @@
+# Server Files
+server/node_modules/
+server/.env
+
+# Frontend Files
+study-planner/node_modules/
+study-planner/dist/
+study-planner/local.env
+study-planner/.env
+
+# Editor & System Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
