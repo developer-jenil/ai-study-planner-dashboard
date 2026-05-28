@@ -165,34 +165,32 @@ export default function App() {
     status: "all",
   });
 
+  const [token, setToken] = useState(localStorage.getItem("token") || "");
+  const [user, setUser] = useState(
+    localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")) : null
+  );
+  const [authView, setAuthView] = useState("login");
+  const API_URL = "http://localhost:5000/api";
+
   useEffect(() => {
+    if (!token) return;
     const load = async () => {
       try {
-        const res = await fetch("http://localhost:5175/api/tasks");
-        if (!res.ok) throw new Error("Failed to fetch tasks");
+        const res = await fetch(`${API_URL}/dashboard`, {
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
+        if (!res.ok) throw new Error("Failed to fetch dashboard");
         const data = await res.json();
-        if (!data || data.length === 0) {
-          // seed server with defaults and use those
-          const created = await Promise.all(
-            DEFAULT_TASKS.map((t) =>
-              fetch("http://localhost:5175/api/tasks", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ...t, createdAt: Date.now(), completed: !!t.completed }),
-              }).then((r) => r.json())
-            )
-          );
-          setTasks(created);
-        } else {
-          setTasks(data);
-        }
+        setTasks(data.tasks || []);
       } catch (e) {
-        console.error("Could not load tasks from server, using defaults", e);
-        setTasks(DEFAULT_TASKS);
+        console.error("Could not load tasks from server", e);
+        setTasks([]);
       }
     };
     load();
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     const urgent = tasks.filter((t) => {
@@ -202,7 +200,7 @@ export default function App() {
     });
     setNotifications(
       urgent.map((t) => ({
-        id: t.id,
+        id: t.id || t._id,
         msg: `"${t.title.slice(0, 28)}…" due ${
           new Date(t.deadline).toDateString() === new Date().toDateString()
             ? "today"
@@ -212,54 +210,58 @@ export default function App() {
     );
   }, [tasks]);
 
-  const addTask = async (t) => {
+  const syncDashboard = async (updatedTasks) => {
+    if (!token) return;
     try {
-      const res = await fetch("http://localhost:5175/api/tasks", {
+      await fetch(`${API_URL}/dashboard`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...t, completed: false, createdAt: Date.now() }),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ tasks: updatedTasks })
       });
-      const created = await res.json();
-      setTasks((p) => [created, ...p]);
-      return created;
     } catch (e) {
-      console.error("Failed to add task to server, adding locally", e);
-      const local = { ...t, id: Date.now().toString(), completed: false, createdAt: Date.now() };
-      setTasks((p) => [local, ...p]);
-      return local;
+      console.error("Failed to sync dashboard to server", e);
     }
+  };
+
+  const addTask = async (t) => {
+    const local = { ...t, id: Date.now().toString(), completed: false, createdAt: Date.now() };
+    const updated = [local, ...tasks];
+    setTasks(updated);
+    await syncDashboard(updated);
+    return local;
   };
 
   const updateTask = async (id, u) => {
-    try {
-      const res = await fetch(`http://localhost:5175/api/tasks/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(u),
-      });
-      const updated = await res.json();
-      setTasks((p) => p.map((t) => (t.id === id ? { ...t, ...updated } : t)));
-      return updated;
-    } catch (e) {
-      console.error("Failed to update task on server, updating locally", e);
-      setTasks((p) => p.map((t) => (t.id === id ? { ...t, ...u } : t)));
-    }
+    const updated = tasks.map((t) => (t.id === id || t._id === id ? { ...t, ...u } : t));
+    setTasks(updated);
+    await syncDashboard(updated);
   };
 
   const deleteTask = async (id) => {
-    try {
-      await fetch(`http://localhost:5175/api/tasks/${id}`, { method: "DELETE" });
-      setTasks((p) => p.filter((t) => t.id !== id));
-    } catch (e) {
-      console.error("Failed to delete task on server, deleting locally", e);
-      setTasks((p) => p.filter((t) => t.id !== id));
-    }
+    const updated = tasks.filter((t) => t.id !== id && t._id !== id);
+    setTasks(updated);
+    await syncDashboard(updated);
   };
 
   const toggleTask = async (id) => {
-    const t = tasks.find((x) => x.id === id);
+    const t = tasks.find((x) => x.id === id || x._id === id);
     if (!t) return;
-    await updateTask(id, { ...t, completed: !t.completed });
+    const isCompleted = !t.completed;
+    await updateTask(id, {
+      completed: isCompleted,
+      completedAt: isCompleted ? new Date().toISOString() : null
+    });
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setToken("");
+    setUser(null);
+    setTasks([]);
   };
 
   return (
@@ -318,51 +320,68 @@ export default function App() {
         />
       </div>
 
-      <Sidebar
-        page={page}
-        setPage={setPage}
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-        tasks={tasks}
-        setShowPomodoro={setShowPomodoro}
-      />
-
-      <main
-        style={{
-          flex: 1,
-          marginLeft: sidebarOpen ? 248 : 74,
-          transition: "margin-left 0.32s cubic-bezier(.4,0,.2,1)",
-          position: "relative",
-          zIndex: 1,
-          minHeight: "100vh",
-        }}
-      >
-        <Navbar
-          page={page}
-          notifications={notifications}
-          setNotifications={setNotifications}
-          setShowAddModal={setShowAddModal}
+      {!token ? (
+        <AuthScreen
+          API_URL={API_URL}
+          authView={authView}
+          setAuthView={setAuthView}
+          onLogin={(token, user) => {
+            localStorage.setItem("token", token);
+            localStorage.setItem("user", JSON.stringify(user));
+            setToken(token);
+            setUser(user);
+          }}
         />
-        <div style={{ padding: "28px 28px 48px", maxWidth: 1400 }}>
-          {page === "dashboard" && (
-            <Dashboard tasks={tasks} setPage={setPage} />
-          )}
-          {page === "tasks" && (
-            <Tasks
-              tasks={tasks}
-              filter={filter}
-              setFilter={setFilter}
-              toggleTask={toggleTask}
-              deleteTask={deleteTask}
-              setEditTask={setEditTask}
+      ) : (
+        <>
+          <Sidebar
+            page={page}
+            setPage={setPage}
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+            tasks={tasks}
+            setShowPomodoro={setShowPomodoro}
+            onLogout={handleLogout}
+          />
+
+          <main
+            style={{
+              flex: 1,
+              marginLeft: sidebarOpen ? 248 : 74,
+              transition: "margin-left 0.32s cubic-bezier(.4,0,.2,1)",
+              position: "relative",
+              zIndex: 1,
+              minHeight: "100vh",
+            }}
+          >
+            <Navbar
+              page={page}
+              notifications={notifications}
+              setNotifications={setNotifications}
               setShowAddModal={setShowAddModal}
             />
-          )}
-          {page === "calendar" && <CalendarPage tasks={tasks} />}
-        </div>
-      </main>
+            <div style={{ padding: "28px 28px 48px", maxWidth: 1400 }}>
+              {page === "dashboard" && (
+                <Dashboard tasks={tasks} setPage={setPage} />
+              )}
+              {page === "tasks" && (
+                <Tasks
+                  tasks={tasks}
+                  filter={filter}
+                  setFilter={setFilter}
+                  toggleTask={toggleTask}
+                  deleteTask={deleteTask}
+                  setEditTask={setEditTask}
+                  setShowAddModal={setShowAddModal}
+                />
+              )}
+              {page === "calendar" && <CalendarPage tasks={tasks} />}
+            </div>
+          </main>
+        </>
+      )}
 
-      {(showAddModal || editTask) && (
+      {(showAddModal || editTask) && token && (
         <TaskModal
           task={editTask}
           onClose={() => {
@@ -377,7 +396,7 @@ export default function App() {
         />
       )}
 
-      {showPomodoro && <PomodoroModal onClose={() => setShowPomodoro(false)} />}
+      {showPomodoro && token && <PomodoroModal onClose={() => setShowPomodoro(false)} />}
 
       <style>{`
         @keyframes fadeInUp  { from{opacity:0;transform:translateY(22px)} to{opacity:1;transform:translateY(0)} }
@@ -411,6 +430,7 @@ function Sidebar({
   setSidebarOpen,
   tasks,
   setShowPomodoro,
+  onLogout,
 }) {
   const nav = [
     { id: "dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -691,6 +711,47 @@ function Sidebar({
           </div>
         </div>
       )}
+
+      {/* Logout button */}
+      <div
+        style={{
+          padding: "0 14px 14px",
+          flexShrink: 0,
+          marginTop: sidebarOpen ? 0 : "auto",
+        }}
+      >
+        <button
+          onClick={onLogout}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "11px 12px",
+            borderRadius: 12,
+            border: "none",
+            cursor: "pointer",
+            textAlign: "left",
+            width: "100%",
+            background: "rgba(239, 68, 68, 0.1)",
+            color: "#f87171",
+            transition: "all .22s ease",
+            borderLeft: "2px solid transparent",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "rgba(239, 68, 68, 0.2)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)";
+          }}
+        >
+          <span style={{ flexShrink: 0, fontSize: 18 }}>🚪</span>
+          {sidebarOpen && (
+            <span style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap" }}>
+              Logout
+            </span>
+          )}
+        </button>
+      </div>
     </aside>
   );
 }
@@ -921,8 +982,14 @@ function Dashboard({ tasks, setPage }) {
     const d = new Date();
     d.setDate(d.getDate() - 6 + i);
     const ds = d.toISOString().split("T")[0];
-    // count tasks whose deadline is that day (as proxy for activity)
-    const c = tasks.filter((t) => t.deadline === ds && t.completed).length;
+    // count tasks completed on this day
+    const c = tasks.filter((t) => {
+      if (!t.completed) return false;
+      const dateSource = t.completedAt || t.updatedAt || t.deadline;
+      if (!dateSource) return false;
+      const tDate = typeof dateSource === "string" ? dateSource.split("T")[0] : new Date(dateSource).toISOString().split("T")[0];
+      return tDate === ds;
+    }).length;
     return {
       day: d.toLocaleDateString("en", { weekday: "short" }),
       Completed: c,
@@ -1926,7 +1993,12 @@ function CalendarPage({ tasks }) {
       2,
       "0"
     )}`;
-    return { ds, dayTasks: tasks.filter((t) => t.deadline === ds) };
+    const dayTasks = tasks.filter((t) => {
+      if (!t.deadline) return false;
+      const tDate = typeof t.deadline === "string" ? t.deadline.split("T")[0] : new Date(t.deadline).toISOString().split("T")[0];
+      return tDate === ds;
+    });
+    return { ds, dayTasks };
   };
 
   const cells = [];
@@ -2755,6 +2827,292 @@ function PomodoroModal({ onClose }) {
               {sessions * 25}m
             </span>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── AuthScreen ─────────────────────────────────────────────────────────────
+function AuthScreen({ API_URL, authView, setAuthView, onLogin }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setError("Please fill in all fields.");
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+
+    try {
+      const endpoint = authView === "login" ? "/auth/login" : "/auth/register";
+      const res = await fetch(`${API_URL}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.msg || "Authentication failed");
+      }
+
+      onLogin(data.token, data.user);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      className="afu"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: "100%",
+        minHeight: "100vh",
+        padding: 20,
+        zIndex: 10,
+      }}
+    >
+      <div
+        className="asi"
+        style={{
+          background: "rgba(255,255,255,0.04)",
+          backdropFilter: "blur(24px)",
+          WebkitBackdropFilter: "blur(24px)",
+          width: "100%",
+          maxWidth: 420,
+          borderRadius: 24,
+          padding: "40px 32px",
+          boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
+          textAlign: "center",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+        }}
+      >
+        {/* Logo/Icon */}
+        <div
+          style={{
+            width: 60,
+            height: 60,
+            borderRadius: 18,
+            margin: "0 auto 20px",
+            background: "linear-gradient(135deg,#6366f1,#06b6d4)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 32,
+            boxShadow: "0 8px 24px rgba(99,102,241,0.3)",
+          }}
+        >
+          📚
+        </div>
+
+        <h2
+          style={{
+            fontSize: 26,
+            fontWeight: 800,
+            margin: "0 0 8px",
+            background: "linear-gradient(135deg,#e2e8f0,#94a3b8)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          }}
+        >
+          {authView === "login" ? "Welcome back" : "Create your account"}
+        </h2>
+        <p
+          style={{
+            fontSize: 14,
+            color: "rgba(255, 255, 255, 0.45)",
+            margin: "0 0 32px",
+          }}
+        >
+          {authView === "login"
+            ? "Sign in to access your StudyFlow dashboard"
+            : "Get started with your AI-powered study planner"}
+        </p>
+
+        {error && (
+          <div
+            style={{
+              padding: "12px 16px",
+              borderRadius: 12,
+              background: "rgba(239, 68, 68, 0.12)",
+              border: "1px solid rgba(239, 68, 68, 0.25)",
+              color: "#f87171",
+              fontSize: 13,
+              textAlign: "left",
+              marginBottom: 20,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              animation: "fadeIn 0.25s ease",
+            }}
+          >
+            <span style={{ fontSize: 16 }}>⚠️</span>
+            <span>{error}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <div style={{ textAlign: "left" }}>
+            <label
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "rgba(255, 255, 255, 0.55)",
+                display: "block",
+                marginBottom: 8,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
+              Email Address
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@example.com"
+              required
+              style={{
+                width: "100%",
+                padding: "14px 16px",
+                borderRadius: 12,
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                background: "rgba(255, 255, 255, 0.03)",
+                color: "#fff",
+                fontSize: 15,
+                transition: "border-color 0.2s, background-color 0.2s",
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = "#6366f1";
+                e.target.style.backgroundColor = "rgba(255, 255, 255, 0.06)";
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = "rgba(255, 255, 255, 0.1)";
+                e.target.style.backgroundColor = "rgba(255, 255, 255, 0.03)";
+              }}
+            />
+          </div>
+
+          <div style={{ textAlign: "left" }}>
+            <label
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "rgba(255, 255, 255, 0.55)",
+                display: "block",
+                marginBottom: 8,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
+              Password
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              style={{
+                width: "100%",
+                padding: "14px 16px",
+                borderRadius: 12,
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                background: "rgba(255, 255, 255, 0.03)",
+                color: "#fff",
+                fontSize: 15,
+                transition: "border-color 0.2s, background-color 0.2s",
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = "#6366f1";
+                e.target.style.backgroundColor = "rgba(255, 255, 255, 0.06)";
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = "rgba(255, 255, 255, 0.1)";
+                e.target.style.backgroundColor = "rgba(255, 255, 255, 0.03)";
+              }}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="gb"
+            style={{
+              width: "100%",
+              padding: 15,
+              borderRadius: 12,
+              border: "none",
+              background: "linear-gradient(135deg,#6366f1,#06b6d4)",
+              color: "#fff",
+              fontSize: 16,
+              fontWeight: 700,
+              cursor: "pointer",
+              boxShadow: "0 4px 15px rgba(99,102,241,0.3)",
+              transition: "transform 0.2s, box-shadow 0.2s",
+              marginTop: 10,
+            }}
+          >
+            {loading ? "Please wait..." : authView === "login" ? "Sign In" : "Register"}
+          </button>
+        </form>
+
+        <div style={{ marginTop: 28, fontSize: 14, color: "rgba(255, 255, 255, 0.45)" }}>
+          {authView === "login" ? (
+            <>
+              Don't have an account?{" "}
+              <button
+                onClick={() => {
+                  setAuthView("register");
+                  setError("");
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#a5b4fc",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  padding: 0,
+                  textDecoration: "underline",
+                }}
+              >
+                Sign up free
+              </button>
+            </>
+          ) : (
+            <>
+              Already have an account?{" "}
+              <button
+                onClick={() => {
+                  setAuthView("login");
+                  setError("");
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#a5b4fc",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  padding: 0,
+                  textDecoration: "underline",
+                }}
+              >
+                Sign in
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
