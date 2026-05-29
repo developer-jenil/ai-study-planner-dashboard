@@ -157,7 +157,7 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editTask, setEditTask] = useState(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768);
   const [showPomodoro, setShowPomodoro] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [filter, setFilter] = useState({
@@ -345,7 +345,23 @@ export default function App() {
             onLogout={handleLogout}
           />
 
+          {sidebarOpen && (
+            <div
+              className="sidebar-backdrop"
+              onClick={() => setSidebarOpen(false)}
+              style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(0,0,0,0.5)",
+                backdropFilter: "blur(4px)",
+                zIndex: 90,
+                display: "none",
+              }}
+            />
+          )}
+
           <main
+            className="app-main"
             style={{
               flex: 1,
               marginLeft: sidebarOpen ? 248 : 74,
@@ -360,8 +376,10 @@ export default function App() {
               notifications={notifications}
               setNotifications={setNotifications}
               setShowAddModal={setShowAddModal}
+              sidebarOpen={sidebarOpen}
+              setSidebarOpen={setSidebarOpen}
             />
-            <div style={{ padding: "28px 28px 48px", maxWidth: 1400 }}>
+            <div className="main-content-container" style={{ padding: "28px 28px 48px", maxWidth: 1400 }}>
               {page === "dashboard" && (
                 <Dashboard tasks={tasks} setPage={setPage} />
               )}
@@ -418,6 +436,68 @@ export default function App() {
         ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:3px; }
         input,select,textarea { color-scheme:dark; outline:none; }
         button { outline:none; }
+
+        /* Mobile responsiveness updates */
+        .app-sidebar {
+          transition: width .32s cubic-bezier(.4,0,.2,1), left .32s cubic-bezier(.4,0,.2,1) !important;
+        }
+        .stats-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
+        }
+        .charts-grid {
+          display: grid;
+          grid-template-columns: 1.6fr 1fr;
+          gap: 16px;
+        }
+        @media (max-width: 1024px) {
+          .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+        @media (max-width: 768px) {
+          .menu-toggle-btn {
+            display: flex !important;
+          }
+          .app-sidebar {
+            width: 248px !important;
+            left: -250px !important;
+            z-index: 999 !important;
+          }
+          .app-sidebar.sidebar-open {
+            left: 0px !important;
+          }
+          .app-sidebar.sidebar-closed {
+            left: -250px !important;
+          }
+          .app-main {
+            margin-left: 0px !important;
+          }
+          .sidebar-backdrop {
+            display: block !important;
+          }
+          .charts-grid {
+            grid-template-columns: 1fr;
+          }
+          .main-content-container {
+            padding: 16px 16px 32px !important;
+          }
+          .navbar-container {
+            padding: 12px 16px !important;
+          }
+        }
+        @media (max-width: 600px) {
+          .stats-grid {
+            grid-template-columns: 1fr;
+          }
+          .calendar-task-titles {
+            display: none !important;
+          }
+          .calendar-task-dots {
+            display: flex !important;
+          }
+        }
       `}</style>
     </div>
   );
@@ -444,13 +524,14 @@ function Sidebar({
 
   return (
     <aside
+      className={`app-sidebar ${sidebarOpen ? "sidebar-open" : "sidebar-closed"}`}
       style={{
         position: "fixed",
         top: 0,
         left: 0,
         height: "100vh",
         width: sidebarOpen ? 248 : 74,
-        transition: "width .32s cubic-bezier(.4,0,.2,1)",
+        transition: "width .32s cubic-bezier(.4,0,.2,1), left .32s cubic-bezier(.4,0,.2,1)",
         ...glass,
         borderRight: "1px solid rgba(255,255,255,0.07)",
         display: "flex",
@@ -554,7 +635,12 @@ function Sidebar({
           return (
             <button
               key={item.id}
-              onClick={() => setPage(item.id)}
+              onClick={() => {
+                setPage(item.id);
+                if (window.innerWidth <= 768) {
+                  setSidebarOpen(false);
+                }
+              }}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -613,7 +699,12 @@ function Sidebar({
         />
 
         <button
-          onClick={() => setShowPomodoro(true)}
+          onClick={() => {
+            setShowPomodoro(true);
+            if (window.innerWidth <= 768) {
+              setSidebarOpen(false);
+            }
+          }}
           style={{
             display: "flex",
             alignItems: "center",
@@ -722,7 +813,12 @@ function Sidebar({
         }}
       >
         <button
-          onClick={onLogout}
+          onClick={() => {
+            onLogout();
+            if (window.innerWidth <= 768) {
+              setSidebarOpen(false);
+            }
+          }}
           style={{
             display: "flex",
             alignItems: "center",
@@ -758,7 +854,7 @@ function Sidebar({
 }
 
 // ─── Navbar ──────────────────────────────────────────────────────────────────
-function Navbar({ page, notifications, setNotifications, setShowAddModal }) {
+function Navbar({ page, notifications, setNotifications, setShowAddModal, sidebarOpen, setSidebarOpen }) {
   const [showN, setShowN] = useState(false);
   const titles = {
     dashboard: "Dashboard Overview",
@@ -768,6 +864,7 @@ function Navbar({ page, notifications, setNotifications, setShowAddModal }) {
 
   return (
     <div
+      className="navbar-container"
       style={{
         padding: "16px 28px",
         display: "flex",
@@ -781,19 +878,36 @@ function Navbar({ page, notifications, setNotifications, setShowAddModal }) {
         backdropFilter: "blur(24px)",
       }}
     >
-      <div>
-        <h1
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <button
+          className="menu-toggle-btn"
+          onClick={() => setSidebarOpen((p) => !p)}
           style={{
-            fontSize: 21,
-            fontWeight: 800,
-            margin: 0,
-            background: "linear-gradient(135deg,#e2e8f0,#94a3b8)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
+            background: "none",
+            border: "none",
+            color: "rgba(255, 255, 255, 0.75)",
+            cursor: "pointer",
+            display: "none",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 4,
           }}
         >
-          {titles[page]}
-        </h1>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+        </button>
+        <div>
+          <h1
+            style={{
+              fontSize: 21,
+              fontWeight: 800,
+              margin: 0,
+              background: "linear-gradient(135deg,#e2e8f0,#94a3b8)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+            }}
+          >
+            {titles[page]}
+          </h1>
         <p
           style={{
             margin: 0,
@@ -809,6 +923,7 @@ function Navbar({ page, notifications, setNotifications, setShowAddModal }) {
             day: "numeric",
           })}
         </p>
+      </div>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1051,13 +1166,7 @@ function Dashboard({ tasks, setPage }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
       {/* Stat cards */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4,1fr)",
-          gap: 16,
-        }}
-      >
+      <div className="stats-grid">
         {stats.map((s, i) => (
           <div
             key={s.label}
@@ -1130,9 +1239,7 @@ function Dashboard({ tasks, setPage }) {
       </div>
 
       {/* Charts row */}
-      <div
-        style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 16 }}
-      >
+      <div className="charts-grid">
         {/* Weekly area chart */}
         <div
           className="afu s2"
@@ -1722,7 +1829,7 @@ function Tasks({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))",
+                  gridTemplateColumns: "repeat(auto-fill,minmax(min(100%,280px),1fr))",
                   gap: 14,
                   marginBottom: 24,
                 }}
@@ -1757,7 +1864,7 @@ function Tasks({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))",
+                  gridTemplateColumns: "repeat(auto-fill,minmax(min(100%,280px),1fr))",
                   gap: 14,
                 }}
               >
@@ -2166,39 +2273,64 @@ function CalendarPage({ tasks }) {
                 >
                   {day}
                 </div>
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 2 }}
-                >
-                  {dayTasks.slice(0, 2).map((t) => (
-                    <div
-                      key={t.id}
-                      style={{
-                        fontSize: 10,
-                        padding: "2px 5px",
-                        borderRadius: 4,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        background: PRIORITY_COLORS[t.priority] + "30",
-                        color: PRIORITY_COLORS[t.priority],
-                        fontWeight: 600,
-                      }}
-                    >
-                      {t.title}
-                    </div>
-                  ))}
-                  {dayTasks.length > 2 && (
-                    <div
-                      style={{
-                        fontSize: 10,
-                        color: "rgba(255,255,255,0.38)",
-                        textAlign: "center",
-                        marginTop: 1,
-                      }}
-                    >
-                      +{dayTasks.length - 2} more
-                    </div>
-                  )}
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  {/* Desktop Title indicators */}
+                  <div className="calendar-task-titles" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    {dayTasks.slice(0, 2).map((t) => (
+                      <div
+                        key={t.id}
+                        style={{
+                          fontSize: 10,
+                          padding: "2px 5px",
+                          borderRadius: 4,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          background: PRIORITY_COLORS[t.priority] + "30",
+                          color: PRIORITY_COLORS[t.priority],
+                          fontWeight: 600,
+                        }}
+                      >
+                        {t.title}
+                      </div>
+                    ))}
+                    {dayTasks.length > 2 && (
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: "rgba(255,255,255,0.38)",
+                          textAlign: "center",
+                          marginTop: 1,
+                        }}
+                      >
+                        +{dayTasks.length - 2} more
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Mobile Dot indicators */}
+                  <div
+                    className="calendar-task-dots"
+                    style={{
+                      display: "none",
+                      flexWrap: "wrap",
+                      gap: 3,
+                      justifyContent: "center",
+                      marginTop: 4,
+                    }}
+                  >
+                    {dayTasks.map((t) => (
+                      <div
+                        key={t.id}
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: "50%",
+                          background: PRIORITY_COLORS[t.priority],
+                        }}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             );
@@ -2401,6 +2533,7 @@ function TaskModal({ task, onClose, onSave }) {
         background: "rgba(0,0,0,0.75)",
         backdropFilter: "blur(10px)",
         animation: "fadeIn 0.2s ease",
+        padding: 16,
       }}
     >
       <div
@@ -2669,6 +2802,7 @@ function PomodoroModal({ onClose }) {
         background: "rgba(0,0,0,0.82)",
         backdropFilter: "blur(14px)",
         animation: "fadeIn 0.2s ease",
+        padding: 16,
       }}
     >
       <div
