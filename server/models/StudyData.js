@@ -16,6 +16,9 @@ const TaskSchema = new mongoose.Schema({
   subject: {
     type: String,
   },
+  description: {
+    type: String,
+  },
   completed: {
     type: Boolean,
     default: false,

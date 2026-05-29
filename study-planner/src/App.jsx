@@ -45,6 +45,7 @@ const SUBJECTS = [
   "English",
   "History",
   "Programming",
+  "Programming Revision",
   "Art",
   "Other",
 ];
@@ -1005,10 +1006,11 @@ function Dashboard({ tasks, setPage }) {
   })).filter((d) => d.value > 0);
 
   // Subject data
-  const subjectData = SUBJECTS.map((s, i) => ({
+  const uniqueSubjectsInTasks = Array.from(new Set(tasks.map((t) => t.subject).filter(Boolean)));
+  const subjectData = uniqueSubjectsInTasks.map((s, i) => ({
     subject: s.length > 7 ? s.slice(0, 7) : s,
     Tasks: tasks.filter((t) => t.subject === s).length,
-    color: SUBJECT_COLORS[i],
+    color: SUBJECT_COLORS[i % SUBJECT_COLORS.length],
   })).filter((d) => d.Tasks > 0);
 
   const stats = [
@@ -1600,6 +1602,10 @@ function Tasks({
   setEditTask,
   setShowAddModal,
 }) {
+  const dynamicSubjects = Array.from(
+    new Set([...SUBJECTS, ...tasks.map((t) => t.subject).filter(Boolean)])
+  ).sort();
+
   const filtered = tasks.filter((t) => {
     if (filter.priority !== "all" && t.priority !== filter.priority)
       return false;
@@ -1654,7 +1660,7 @@ function Tasks({
         {[
           { key: "status", opts: ["all", "pending", "completed"] },
           { key: "priority", opts: ["all", "low", "medium", "high"] },
-          { key: "subject", opts: ["all", ...SUBJECTS] },
+          { key: "subject", opts: ["all", ...dynamicSubjects] },
         ].map((f) => (
           <select
             key={f.key}
@@ -1861,6 +1867,19 @@ function TaskCard({
           >
             {task.title}
           </div>
+          {task.description && (
+            <div
+              style={{
+                fontSize: 12,
+                color: "rgba(255,255,255,0.45)",
+                marginBottom: 8,
+                whiteSpace: "pre-wrap",
+                lineHeight: 1.4,
+              }}
+            >
+              {task.description}
+            </div>
+          )}
           <div
             style={{
               display: "flex",
@@ -2227,7 +2246,11 @@ function CalendarPage({ tasks }) {
       {/* Selected day detail */}
       {selectedDay &&
         (() => {
-          const dayTasks = tasks.filter((t) => t.deadline === selectedDay);
+          const dayTasks = tasks.filter((t) => {
+            if (!t.deadline) return false;
+            const tDate = typeof t.deadline === "string" ? t.deadline.split("T")[0] : new Date(t.deadline).toISOString().split("T")[0];
+            return tDate === selectedDay;
+          });
           return (
             <div
               className="afu s1"
@@ -2261,9 +2284,9 @@ function CalendarPage({ tasks }) {
                     key={t.id}
                     style={{
                       display: "flex",
-                      alignItems: "center",
+                      alignItems: "flex-start",
                       gap: 10,
-                      padding: "9px 12px",
+                      padding: "10px 12px",
                       borderRadius: 10,
                       background: "rgba(255,255,255,0.04)",
                       marginBottom: 7,
@@ -2277,19 +2300,34 @@ function CalendarPage({ tasks }) {
                         borderRadius: "50%",
                         background: PRIORITY_COLORS[t.priority],
                         flexShrink: 0,
+                        marginTop: 5,
                       }}
                     />
-                    <span
-                      style={{
-                        fontSize: 13.5,
-                        fontWeight: 600,
-                        flex: 1,
-                        textDecoration: t.completed ? "line-through" : "none",
-                        color: t.completed ? "rgba(255,255,255,0.4)" : "white",
-                      }}
-                    >
-                      {t.title}
-                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 13.5,
+                          fontWeight: 600,
+                          textDecoration: t.completed ? "line-through" : "none",
+                          color: t.completed ? "rgba(255,255,255,0.4)" : "white",
+                        }}
+                      >
+                        {t.title}
+                      </div>
+                      {t.description && (
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "rgba(255,255,255,0.42)",
+                            marginTop: 4,
+                            whiteSpace: "pre-wrap",
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          {t.description}
+                        </div>
+                      )}
+                    </div>
                     <span
                       style={{
                         fontSize: 11,
@@ -2297,11 +2335,12 @@ function CalendarPage({ tasks }) {
                         borderRadius: 5,
                         background: "rgba(255,255,255,0.07)",
                         color: "rgba(255,255,255,0.4)",
+                        flexShrink: 0,
                       }}
                     >
                       {t.subject}
                     </span>
-                    {t.completed && <Check size={13} color="#10b981" />}
+                    {t.completed && <Check size={13} color="#10b981" style={{ flexShrink: 0, marginTop: 3 }} />}
                   </div>
                 ))
               )}
@@ -2319,6 +2358,7 @@ function TaskModal({ task, onClose, onSave }) {
     priority: task?.priority || "medium",
     deadline: task?.deadline || today(),
     subject: task?.subject || "Other",
+    description: task?.description || "",
   });
   const [error, setError] = useState("");
 
@@ -2456,19 +2496,20 @@ function TaskModal({ task, onClose, onSave }) {
             </div>
             <div>
               <label style={labelStyle}>Subject</label>
-              <select
+              <input
+                list="subjects-datalist"
                 value={form.subject}
                 onChange={(e) =>
                   setForm((p) => ({ ...p, subject: e.target.value }))
                 }
-                style={{ ...inputStyle, cursor: "pointer" }}
-              >
+                placeholder="e.g. Chemistry, Art"
+                style={inputStyle}
+              />
+              <datalist id="subjects-datalist">
                 {SUBJECTS.map((s) => (
-                  <option key={s} value={s} style={{ background: "#1a1a35" }}>
-                    {s}
-                  </option>
+                  <option key={s} value={s} />
                 ))}
-              </select>
+              </datalist>
             </div>
           </div>
 
@@ -2482,6 +2523,19 @@ function TaskModal({ task, onClose, onSave }) {
                 setForm((p) => ({ ...p, deadline: e.target.value }))
               }
               style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Description</label>
+            <textarea
+              value={form.description}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, description: e.target.value }))
+              }
+              placeholder="Provide more details about the task..."
+              rows={3}
+              style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
             />
           </div>
 
