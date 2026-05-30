@@ -166,9 +166,9 @@ export default function App() {
     status: "all",
   });
 
-  const [token, setToken] = useState(localStorage.getItem("token") || "");
+  const [token, setToken] = useState(sessionStorage.getItem("token") || "");
   const [user, setUser] = useState(
-    localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")) : null
+    sessionStorage.getItem("user") ? JSON.parse(sessionStorage.getItem("user")) : null
   );
   const [authView, setAuthView] = useState("login");
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
@@ -258,8 +258,8 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("user");
     setToken("");
     setUser(null);
     setTasks([]);
@@ -327,8 +327,8 @@ export default function App() {
           authView={authView}
           setAuthView={setAuthView}
           onLogin={(token, user) => {
-            localStorage.setItem("token", token);
-            localStorage.setItem("user", JSON.stringify(user));
+            sessionStorage.setItem("token", token);
+            sessionStorage.setItem("user", JSON.stringify(user));
             setToken(token);
             setUser(user);
           }}
@@ -378,6 +378,8 @@ export default function App() {
               setShowAddModal={setShowAddModal}
               sidebarOpen={sidebarOpen}
               setSidebarOpen={setSidebarOpen}
+              user={user}
+              onLogout={handleLogout}
             />
             <div className="main-content-container" style={{ padding: "28px 28px 48px", maxWidth: 1400 }}>
               {page === "dashboard" && (
@@ -486,6 +488,9 @@ export default function App() {
           .navbar-container {
             padding: 12px 16px !important;
           }
+          .sidebar-goal-widget {
+            display: none !important;
+          }
         }
         @media (max-width: 600px) {
           .stats-grid {
@@ -496,6 +501,15 @@ export default function App() {
           }
           .calendar-task-dots {
             display: flex !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .add-task-text {
+            display: none !important;
+          }
+          .add-task-btn {
+            padding: 9px 10px !important;
+            border-radius: 10px !important;
           }
         }
       `}</style>
@@ -529,7 +543,7 @@ function Sidebar({
         position: "fixed",
         top: 0,
         left: 0,
-        height: "100vh",
+        height: "100dvh",
         width: sidebarOpen ? 248 : 74,
         transition: "width .32s cubic-bezier(.4,0,.2,1), left .32s cubic-bezier(.4,0,.2,1)",
         ...glass,
@@ -538,6 +552,7 @@ function Sidebar({
         flexDirection: "column",
         zIndex: 100,
         overflow: "hidden",
+        paddingBottom: "env(safe-area-inset-bottom, 14px)",
       }}
     >
       {/* Logo */}
@@ -731,6 +746,7 @@ function Sidebar({
       {/* Goal widget */}
       {sidebarOpen && (
         <div
+          className="sidebar-goal-widget"
           style={{
             padding: 14,
             borderTop: "1px solid rgba(255,255,255,0.06)",
@@ -854,8 +870,9 @@ function Sidebar({
 }
 
 // ─── Navbar ──────────────────────────────────────────────────────────────────
-function Navbar({ page, notifications, setNotifications, setShowAddModal, sidebarOpen, setSidebarOpen }) {
+function Navbar({ page, notifications, setNotifications, setShowAddModal, sidebarOpen, setSidebarOpen, user, onLogout }) {
   const [showN, setShowN] = useState(false);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const titles = {
     dashboard: "Dashboard Overview",
     tasks: "My Tasks",
@@ -1059,7 +1076,7 @@ function Navbar({ page, notifications, setNotifications, setShowAddModal, sideba
         {/* Add task CTA */}
         <button
           onClick={() => setShowAddModal(true)}
-          className="gb"
+          className="gb add-task-btn"
           style={{
             display: "flex",
             alignItems: "center",
@@ -1076,8 +1093,111 @@ function Navbar({ page, notifications, setNotifications, setShowAddModal, sideba
           }}
         >
           <Plus size={16} />
-          Add Task
+          <span className="add-task-text">Add Task</span>
         </button>
+
+        {/* User profile avatar and dropdown */}
+        {user && (
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setShowProfileDropdown((p) => !p)}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                border: "1px solid rgba(255,255,255,0.15)",
+                background: "linear-gradient(135deg, #6366f1, #a5b4fc)",
+                cursor: "pointer",
+                color: "white",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 700,
+                fontSize: 16,
+                boxShadow: "0 2px 10px rgba(99,102,241,0.25)",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.05)"}
+              onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+            >
+              {user.email ? user.email.charAt(0).toUpperCase() : "U"}
+            </button>
+            {showProfileDropdown && (
+              <div
+                className="asi"
+                style={{
+                  position: "absolute",
+                  top: 48,
+                  right: 0,
+                  width: 220,
+                  ...glass,
+                  borderRadius: 14,
+                  padding: 12,
+                  zIndex: 200,
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "rgba(255,255,255,0.4)",
+                    marginBottom: 4,
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  SIGNED IN AS
+                </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "#e2e8f0",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    marginBottom: 12,
+                  }}
+                >
+                  {user.email}
+                </div>
+                <div
+                  style={{
+                    borderTop: "1px solid rgba(255,255,255,0.08)",
+                    marginBottom: 8,
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    onLogout();
+                    setShowProfileDropdown(false);
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "9px 12px",
+                    borderRadius: 9,
+                    border: "none",
+                    background: "rgba(239, 68, 68, 0.15)",
+                    color: "#f87171",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    transition: "background 0.2s",
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "rgba(239, 68, 68, 0.25)"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "rgba(239, 68, 68, 0.15)"}
+                >
+                  🚪 Logout
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
