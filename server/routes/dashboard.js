@@ -8,7 +8,26 @@ const StudyData = require('../models/StudyData');
 // @access  Private (Protected by JWT)
 router.get('/', auth, async (req, res) => {
   try {
-    const dashboardData = await StudyData.findOne({ userId: req.user.id });
+    const limit = req.query.limit ? parseInt(req.query.limit) : null;
+    let offset = req.query.offset ? parseInt(req.query.offset) : 0;
+    if (isNaN(offset) || offset < 0) offset = 0;
+
+    let projection = {
+      tasks: 1,
+      userId: 1,
+      pomodoroSettings: 1,
+      _id: 1
+    };
+    let totalTasks = undefined;
+
+    if (limit !== null && !isNaN(limit) && limit >= 0) {
+      const countDoc = await StudyData.findOne({ userId: req.user.id }, { tasks: 1 });
+      totalTasks = countDoc && countDoc.tasks ? countDoc.tasks.length : 0;
+
+      projection.tasks = { $slice: [offset, limit] };
+    }
+
+    const dashboardData = await StudyData.findOne({ userId: req.user.id }, projection).populate('userId', 'email');
 
     // If no document exists, return a default clean structure
     if (!dashboardData) {
@@ -20,6 +39,16 @@ router.get('/', auth, async (req, res) => {
           breakDuration: 300
         }
       });
+    }
+
+    if (totalTasks !== undefined) {
+      const responseData = dashboardData.toJSON();
+      responseData.pagination = {
+        totalTasks,
+        limit,
+        offset
+      };
+      return res.json(responseData);
     }
 
     return res.json(dashboardData);

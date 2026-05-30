@@ -17,7 +17,7 @@ router.post('/register', async (req, res) => {
 
   try {
     // Check for existing user
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ email }).select('_id');
     if (user) {
       return res.status(400).json({ msg: 'User already exists' });
     }
@@ -69,7 +69,7 @@ router.post('/login', async (req, res) => {
 
   try {
     // Check if user exists
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select('_id email password');
     if (!user) {
       return res.status(400).json({ msg: 'Invalid credentials' });
     }

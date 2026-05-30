@@ -61,4 +61,11 @@ const StudyDataSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Add indexes on fields queried, filtered, or sorted by the application
+StudyDataSchema.index({ "tasks.completed": 1 });
+StudyDataSchema.index({ "tasks.priority": 1 });
+StudyDataSchema.index({ "tasks.subject": 1 });
+StudyDataSchema.index({ "tasks.deadline": 1 });
+StudyDataSchema.index({ "tasks.createdAt": -1 });
+
 module.exports = mongoose.model('StudyData', StudyDataSchema);

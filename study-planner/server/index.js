@@ -26,7 +26,23 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
 
 app.get('/api/tasks', (req, res) => {
   const db = readDB();
-  res.json(db.tasks || []);
+  const tasks = db.tasks || [];
+
+  const limit = req.query.limit ? parseInt(req.query.limit) : null;
+  let offset = req.query.offset ? parseInt(req.query.offset) : 0;
+  if (isNaN(offset) || offset < 0) offset = 0;
+
+  if (limit !== null && !isNaN(limit) && limit >= 0) {
+    const paginatedTasks = tasks.slice(offset, offset + limit);
+    res.json({
+      total: tasks.length,
+      limit,
+      offset,
+      tasks: paginatedTasks
+    });
+  } else {
+    res.json(tasks);
+  }
 });
 
 app.post('/api/tasks', (req, res) => {
