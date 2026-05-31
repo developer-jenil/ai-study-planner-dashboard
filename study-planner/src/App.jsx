@@ -420,6 +420,11 @@ export default function App() {
       {showPomodoro && token && <PomodoroModal onClose={() => setShowPomodoro(false)} />}
 
       <style>{`
+        html, body {
+          margin: 0;
+          padding: 0;
+          background-color: #07071a;
+        }
         @keyframes fadeInUp  { from{opacity:0;transform:translateY(22px)} to{opacity:1;transform:translateY(0)} }
         @keyframes fadeIn    { from{opacity:0} to{opacity:1} }
         @keyframes scaleIn   { from{opacity:0;transform:scale(0.88)} to{opacity:1;transform:scale(1)} }
@@ -546,7 +551,7 @@ function Sidebar({
         height: "100dvh",
         width: sidebarOpen ? 248 : 74,
         transition: "width .32s cubic-bezier(.4,0,.2,1), left .32s cubic-bezier(.4,0,.2,1)",
-        ...glass,
+        background: "#090a20",
         borderRight: "1px solid rgba(255,255,255,0.07)",
         display: "flex",
         flexDirection: "column",
@@ -1363,7 +1368,7 @@ function Dashboard({ tasks, setPage }) {
         {/* Weekly area chart */}
         <div
           className="afu s2"
-          style={{ ...glass, borderRadius: 18, padding: "20px 20px 14px" }}
+          style={{ ...glass, borderRadius: 18, padding: "20px 20px 14px", minWidth: 0, overflow: "hidden" }}
         >
           <div
             style={{
@@ -1454,7 +1459,7 @@ function Dashboard({ tasks, setPage }) {
         {/* Priority pie */}
         <div
           className="afu s3"
-          style={{ ...glass, borderRadius: 18, padding: "20px 20px 14px" }}
+          style={{ ...glass, borderRadius: 18, padding: "20px 20px 14px", minWidth: 0, overflow: "hidden" }}
         >
           <div
             style={{
@@ -1480,35 +1485,37 @@ function Dashboard({ tasks, setPage }) {
             </div>
             <Target size={18} color="#f59e0b" />
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <ResponsiveContainer width={150} height={150}>
-              <PieChart>
-                <Pie
-                  data={priorityData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={44}
-                  outerRadius={68}
-                  paddingAngle={4}
-                  dataKey="value"
-                  strokeWidth={0}
-                >
-                  {priorityData.map((d, i) => (
-                    <Cell key={i} fill={d.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    background: "rgba(7,7,26,0.92)",
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    borderRadius: 10,
-                    color: "white",
-                    fontSize: 13,
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", justifyContent: "center" }}>
+            <div style={{ width: 150, height: 150, flexShrink: 0 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={priorityData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={44}
+                    outerRadius={68}
+                    paddingAngle={4}
+                    dataKey="value"
+                    strokeWidth={0}
+                  >
+                    {priorityData.map((d, i) => (
+                      <Cell key={i} fill={d.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: "rgba(7,7,26,0.92)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: 10,
+                      color: "white",
+                      fontSize: 13,
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div style={{ flex: "1 1 120px", minWidth: 120 }}>
               {priorityData.map((d) => (
                 <div
                   key={d.name}
@@ -1553,7 +1560,7 @@ function Dashboard({ tasks, setPage }) {
       {subjectData.length > 0 && (
         <div
           className="afu s4"
-          style={{ ...glass, borderRadius: 18, padding: "20px 20px 14px" }}
+          style={{ ...glass, borderRadius: 18, padding: "20px 20px 14px", minWidth: 0, overflow: "hidden" }}
         >
           <div
             style={{
@@ -1627,6 +1634,7 @@ function Dashboard({ tasks, setPage }) {
           borderRadius: 18,
           padding: 22,
           border: "1px solid rgba(99,102,241,0.22)",
+          minWidth: 0,
         }}
       >
         <div
@@ -1635,6 +1643,7 @@ function Dashboard({ tasks, setPage }) {
             alignItems: "center",
             gap: 12,
             marginBottom: 18,
+            flexWrap: "wrap",
           }}
         >
           <div
@@ -1652,7 +1661,7 @@ function Dashboard({ tasks, setPage }) {
           >
             <Brain size={20} color="white" />
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 140 }}>
             <div style={{ fontWeight: 800, fontSize: 16 }}>
               AI Study Plan — Today
             </div>
@@ -1668,31 +1677,43 @@ function Dashboard({ tasks, setPage }) {
           </div>
           <div
             style={{
-              padding: "5px 12px",
-              borderRadius: 20,
-              background: "rgba(99,102,241,0.18)",
-              fontSize: 12,
-              color: "#a5b4fc",
-              fontWeight: 700,
-              border: "1px solid rgba(99,102,241,0.3)",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginLeft: "auto",
+              flexWrap: "wrap",
             }}
           >
-            ✨ AI Generated
+            <div
+              style={{
+                padding: "5px 12px",
+                borderRadius: 20,
+                background: "rgba(99,102,241,0.18)",
+                fontSize: 12,
+                color: "#a5b4fc",
+                fontWeight: 700,
+                border: "1px solid rgba(99,102,241,0.3)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              ✨ AI Generated
+            </div>
+            <button
+              onClick={() => setPage("tasks")}
+              style={{
+                padding: "5px 12px",
+                borderRadius: 20,
+                background: "transparent",
+                border: "1px solid rgba(255,255,255,0.12)",
+                color: "rgba(255,255,255,0.5)",
+                cursor: "pointer",
+                fontSize: 12,
+                whiteSpace: "nowrap",
+              }}
+            >
+              View all →
+            </button>
           </div>
-          <button
-            onClick={() => setPage("tasks")}
-            style={{
-              padding: "5px 12px",
-              borderRadius: 20,
-              background: "transparent",
-              border: "1px solid rgba(255,255,255,0.12)",
-              color: "rgba(255,255,255,0.5)",
-              cursor: "pointer",
-              fontSize: 12,
-            }}
-          >
-            View all →
-          </button>
         </div>
 
         {plan.length === 0 ? (
@@ -1756,7 +1777,7 @@ function Dashboard({ tasks, setPage }) {
                       style={{
                         fontWeight: 700,
                         fontSize: 14,
-                        marginBottom: 3,
+                        marginBottom: 4,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
@@ -1765,49 +1786,43 @@ function Dashboard({ tasks, setPage }) {
                       {task.title}
                     </div>
                     <div
-                      style={{ fontSize: 12, color: "rgba(255,255,255,0.42)" }}
-                    >
-                      {task.subject} &nbsp;·&nbsp;{" "}
-                      {task.daysLeft <= 0
-                        ? "⚠️ Overdue!"
-                        : task.daysLeft === 1
-                        ? "Due tomorrow"
-                        : `${task.daysLeft} days left`}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div
                       style={{
-                        fontSize: 18,
-                        fontWeight: 900,
-                        color: accent[1],
-                        lineHeight: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        flexWrap: "wrap",
+                        fontSize: 12,
+                        color: "rgba(255,255,255,0.42)",
                       }}
                     >
-                      {task.suggestedHours}h
+                      <span>{task.subject}</span>
+                      <span>·</span>
+                      <span>
+                        {task.daysLeft <= 0
+                          ? "⚠️ Overdue!"
+                          : task.daysLeft === 1
+                          ? "Due tomorrow"
+                          : `${task.daysLeft} days left`}
+                      </span>
+                      <span>·</span>
+                      <span style={{ color: accent[1], fontWeight: 700 }}>
+                        {task.suggestedHours}h suggested
+                      </span>
+                      <span>·</span>
+                      <span
+                        style={{
+                          padding: "2px 6px",
+                          borderRadius: 5,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          background: PRIORITY_COLORS[task.priority] + "28",
+                          color: PRIORITY_COLORS[task.priority],
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {task.priority}
+                      </span>
                     </div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: "rgba(255,255,255,0.38)",
-                        marginTop: 2,
-                      }}
-                    >
-                      suggested
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: 7,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      background: PRIORITY_COLORS[task.priority] + "28",
-                      color: PRIORITY_COLORS[task.priority],
-                      flexShrink: 0,
-                    }}
-                  >
-                    {task.priority}
                   </div>
                 </div>
               );
