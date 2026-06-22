@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const StudyData = require('../models/StudyData');
+const redisClient = require('../config/redis');
 
 // @route   GET /api/dashboard
 // @desc    Get the authenticated user's study planner data
@@ -11,6 +12,19 @@ router.get('/', auth, async (req, res) => {
     const limit = req.query.limit ? parseInt(req.query.limit) : null;
     let offset = req.query.offset ? parseInt(req.query.offset) : 0;
     if (isNaN(offset) || offset < 0) offset = 0;
+
+    const limitStr = (limit !== null && !isNaN(limit)) ? limit : 'none';
+    const cacheKey = `user:dashboard:${req.user.id}:${limitStr}:${offset}`;
+
+    // Try to retrieve cached dashboard data from Redis
+    try {
+      const cachedData = await redisClient.get(cacheKey);
+      if (cachedData) {
+        return res.json(JSON.parse(cachedData));
+      }
+    } catch (redisErr) {
+      console.error('Redis GET dashboard failed:', redisErr.message);
+    }
 
     let projection = {
       tasks: 1,
@@ -31,27 +45,43 @@ router.get('/', auth, async (req, res) => {
 
     // If no document exists, return a default clean structure
     if (!dashboardData) {
-      return res.json({
+      const defaultData = {
         userId: req.user.id,
         tasks: [],
         pomodoroSettings: {
           workDuration: 1500,
           breakDuration: 300
         }
-      });
+      };
+
+      // Cache the default data structure
+      try {
+        await redisClient.set(cacheKey, JSON.stringify(defaultData), { EX: 3600 });
+      } catch (redisErr) {
+        console.error('Redis SET default dashboard failed:', redisErr.message);
+      }
+
+      return res.json(defaultData);
     }
 
+    let responseData = dashboardData;
     if (totalTasks !== undefined) {
-      const responseData = dashboardData.toJSON();
+      responseData = dashboardData.toJSON();
       responseData.pagination = {
         totalTasks,
         limit,
         offset
       };
-      return res.json(responseData);
     }
 
-    return res.json(dashboardData);
+    // Cache the retrieved dashboard data in Redis (expires in 1 hour)
+    try {
+      await redisClient.set(cacheKey, JSON.stringify(responseData), { EX: 3600 });
+    } catch (redisErr) {
+      console.error('Redis SET dashboard failed:', redisErr.message);
+    }
+
+    return res.json(responseData);
   } catch (err) {
     console.error(`GET /api/dashboard error: ${err.message}`);
     return res.status(500).json({ msg: 'Server error fetching study planner data' });
@@ -76,6 +106,22 @@ router.post('/', auth, async (req, res) => {
       },
       { new: true, upsert: true, runValidators: true }
     );
+
+    // Invalidate all Redis dashboard cache keys for this user
+    try {
+      let cursor = '0';
+      const pattern = `user:dashboard:${req.user.id}:*`;
+      do {
+        const reply = await redisClient.scan(cursor, { MATCH: pattern, COUNT: 100 });
+        cursor = reply.cursor;
+        const keys = reply.keys;
+        if (keys && keys.length > 0) {
+          await redisClient.del(keys);
+        }
+      } while (cursor !== '0');
+    } catch (redisErr) {
+      console.error('Redis cache invalidation failed:', redisErr.message);
+    }
 
     return res.json(updatedData);
   } catch (err) {

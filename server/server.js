@@ -9,6 +9,10 @@ dotenv.config();
 // Connect to MongoDB Atlas
 connectDB();
 
+// Initialize Redis connection
+require('./config/redis');
+
+
 const app = express();
 
 // Middleware Setup
